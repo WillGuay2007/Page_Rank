@@ -118,6 +118,30 @@ sur les valeurs de l'itération précédente, les valeurs finiront par converger
 (c'est-à-dire qu'elles ne changeront pas de plus d'un petit seuil de tolérance 
 à chaque itération).
 
+![](./formula.png)
+
+Dans cette formule, *d* représente le facteur d'amortissement, *N* le 
+nombre total de pages du corpus, *i* parcourt toutes les pages pointant 
+vers la page *p*, et *NumLinks(i)* correspond au nombre de liens présents 
+sur la page *i*.
+
+Comment procéder alors pour calculer les valeurs PageRank de chaque page ? 
+Nous pouvons le faire par itération : 
+on commence par supposer que le PageRank de chaque page est égal à 1 / N 
+(c'est-à-dire qu'il y a une probabilité égale de se trouver sur n'importe 
+quelle page). 
+Ensuite, on utilise la formule ci-dessus pour calculer de nouvelles valeurs 
+PageRank pour chaque page, en se basant sur les valeurs précédentes. 
+En répétant ce processus — c'est-à-dire en calculant un nouvel ensemble 
+de valeurs PageRank pour chaque page à partir de l'ensemble précédent —, 
+les valeurs PageRank finiront par converger (elles ne varieront plus que 
+d'un faible seuil à chaque itération).
+
+Dans le cadre de ce projet, vous mettrez en œuvre ces deux approches pour 
+calculer le PageRank : d'une part, par échantillonnage de pages via la 
+simulation d'un « surfeur aléatoire » (chaîne de Markov) et, d'autre part, 
+par l'application itérative de la formule du PageRank.
+
 
 ### Compréhension du code fourni
 
