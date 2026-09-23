@@ -106,26 +106,10 @@ def transition_model(
            La somme des probabilités est de 1.
 
        """
-    #J'aime quand c'est explicit comme ca.
-    numberOfPages = len(corpus)
-    numberOfLinks = len(corpus[page])
-    oddsIfNoLinks = 1 / numberOfPages
-    teleportChance = (1 - damping_factor) / numberOfPages
-    oddsPerLink = damping_factor / numberOfLinks + teleportChance
-    oddsDictionary = {}
-
-    if numberOfLinks == 0:
-        for iterPageName in corpus:
-            oddsDictionary[iterPageName] = oddsIfNoLinks
-        return oddsDictionary
-
-    for iterPageName in corpus:
-        if iterPageName in corpus[page]:
-            oddsDictionary[iterPageName] = oddsPerLink
-        else:
-            oddsDictionary[iterPageName] = teleportChance
-    return oddsDictionary
-
+    teleportChance = (1 - damping_factor) / len(corpus)
+    if len(corpus[page]) == 0: return {k: 1 / len(corpus) for k in corpus}
+    oddsPerLink = damping_factor / len(corpus[page]) + teleportChance
+    return {k: oddsPerLink if k in corpus[page] else teleportChance for k in corpus}
 
 def sample_pagerank(
     corpus: dict[str, set[str]], damping_factor: float, n: int
@@ -150,27 +134,14 @@ def sample_pagerank(
         les valeurs de PageRank est de 1.
 
     """
-    visitAmountPerPageDict = {}
-    for iterPageName in corpus:
-        visitAmountPerPageDict[iterPageName] = 0
-
-    initialPage: str = random.choice(list(corpus.keys()))
-    visitAmountPerPageDict[initialPage] += 1
-    lastVisitedPage: str = initialPage
-    totalEntries = n
-    n -= 1
-    while n > 0:
-        n -= 1
+    visitAmountPerPageDict = {k: 0 for k in corpus}
+    lastVisitedPage: str = random.choice(list(corpus.keys()))
+    visitAmountPerPageDict[lastVisitedPage] += 1
+    for i in range(1, n - 1):
         pageChoicesOdds = transition_model(corpus, lastVisitedPage, damping_factor)
-        lastVisitedPage = random.choices(
-            list(pageChoicesOdds.keys()),
-            weights=list(pageChoicesOdds.values()),
-        )[0]
+        lastVisitedPage = random.choices(list(pageChoicesOdds.keys()), weights=list(pageChoicesOdds.values()))[0]
         visitAmountPerPageDict[lastVisitedPage] += 1
-    pageRankDict = {}
-    for iterPageName in visitAmountPerPageDict:
-        pageRankDict[iterPageName] = visitAmountPerPageDict[iterPageName] / totalEntries
-    return pageRankDict
+    return {k: visitAmountPerPageDict[k] / n for k in corpus}
 
 
 
