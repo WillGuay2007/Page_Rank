@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import random
 import re
+import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -39,7 +41,7 @@ def run(data: Path) -> None:
     for page in sorted(ranks_iterated):
         print(f"  {page}: {ranks_iterated[page]:.4f}")
 
-
+#J'ai modifié crawl vu qu'il retournait pas des strings comme key mais plutot des Path
 def crawl(directory: Path) -> dict[str, set[str]]:
     """
     Analyse un répertoire de pages HTML à la recherche de liens.
@@ -57,7 +59,7 @@ def crawl(directory: Path) -> dict[str, set[str]]:
         la page pointe.
 
     """
-    pages: dict[Path, set[str]] = {}
+    pages: dict[str, set[str]] = {}
 
     # Extrait tous les liens des fichiers HTML
     for filename in directory.iterdir():
@@ -67,7 +69,7 @@ def crawl(directory: Path) -> dict[str, set[str]]:
         with filename.open(encoding="utf-8") as f:
             contents = f.read()
             links = re.findall(r'<a\s+(?:[^>]*?)href="([^"]*)"', contents)
-            pages[filename] = set(links) - {filename}
+            pages[filename.name] = set(links) - {filename.name}
 
     # Inclut uniquement les liens vers d'autres pages du corpus
     for filename in pages:
@@ -84,27 +86,45 @@ def transition_model(
     corpus: dict[str, set[str]], page: str, damping_factor: float
 ) -> dict[str, float]:
     """
-    Retourne une distribution de probabilité sur la prochaine page à visiter.
+       Retourne une distribution de probabilité sur la prochaine page à visiter.
 
-    Avec une probabilité `damping_factor`, choisit au hasard un lien
-    pointé par la `page`. Avec une probabilité `1 - damping_factor`, choisit
-    au hasard un lien parmi toutes les pages du corpus.
+       Avec une probabilité `damping_factor`, choisit au hasard un lien
+       pointé par la `page`. Avec une probabilité `1 - damping_factor`, choisit
+       au hasard un lien parmi toutes les pages du corpus.
 
-    Args:
-        corpus:
-            Le dictionnaire représentant le graphe des pages du corpus.
-        page:
-            Le nom de la page actuelle sur laquelle se trouve le surfeur.
-        damping_factor:
-            Le facteur d'amortissement (probabilité de suivre un lien existant).
+       Args:
+           corpus:
+               Le dictionnaire représentant le graphe des pages du corpus.
+           page:
+               Le nom de la page actuelle sur laquelle se trouve le surfeur.
+           damping_factor:
+               Le facteur d'amortissement (probabilité de suivre un lien existant).
 
-    Returns:
-        Un dictionnaire associant chaque page du corpus à la probabilité
-        (entre 0 et 1) qu'elle soit la prochaine page visitée.
-        La somme des probabilités est de 1.
+       Returns:
+           Un dictionnaire associant chaque page du corpus à la probabilité
+           (entre 0 et 1) qu'elle soit la prochaine page visitée.
+           La somme des probabilités est de 1.
 
-    """
-    raise NotImplementedError
+       """
+    #J'aime quand c'est explicit comme ca.
+    numberOfPages = len(corpus)
+    numberOfLinks = len(corpus[page])
+    oddsIfNoLinks = 1 / numberOfPages
+    teleportChance = (1 - damping_factor) / numberOfPages
+    oddsPerLink = damping_factor / numberOfLinks + teleportChance
+    oddsDictionary = {}
+
+    if numberOfLinks == 0:
+        for iterPageName in corpus:
+            oddsDictionary[iterPageName] = oddsIfNoLinks
+        return oddsDictionary
+
+    for iterPageName in corpus:
+        if iterPageName in corpus[page]:
+            oddsDictionary[iterPageName] = oddsPerLink
+        else:
+            oddsDictionary[iterPageName] = teleportChance
+    return oddsDictionary
 
 
 def sample_pagerank(
@@ -130,7 +150,28 @@ def sample_pagerank(
         les valeurs de PageRank est de 1.
 
     """
-    raise NotImplementedError
+    visitAmountPerPageDict = {}
+    for iterPageName in corpus:
+        visitAmountPerPageDict[iterPageName] = 0
+
+    initialPage: str = random.choice(list(corpus.keys()))
+    visitAmountPerPageDict[initialPage] += 1
+    lastVisitedPage: str = initialPage
+    totalEntries = n
+    n -= 1
+    while n > 0:
+        n -= 1
+        pageChoicesOdds = transition_model(corpus, lastVisitedPage, damping_factor)
+        lastVisitedPage = random.choices(
+            list(pageChoicesOdds.keys()),
+            weights=list(pageChoicesOdds.values()),
+        )[0]
+        visitAmountPerPageDict[lastVisitedPage] += 1
+    pageRankDict = {}
+    for iterPageName in visitAmountPerPageDict:
+        pageRankDict[iterPageName] = visitAmountPerPageDict[iterPageName] / totalEntries
+    return pageRankDict
+
 
 
 def iterate_pagerank(
