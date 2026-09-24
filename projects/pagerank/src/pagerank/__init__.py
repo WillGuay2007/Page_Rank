@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 DAMPING: float = 0.85
 SAMPLES: int = 10000
+ITERATIVE_PRECISION = 0.001  # Je le met ici vu que c'est pas mal l'équivalent de SAMPLES mais pour iterate
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +42,8 @@ def run(data: Path) -> None:
     for page in sorted(ranks_iterated):
         print(f"  {page}: {ranks_iterated[page]:.4f}")
 
-#J'ai modifié crawl vu qu'il retournait pas des strings comme key mais plutot des Path
+
+# J'ai modifié crawl vu qu'il retournait pas des strings comme key mais plutot des Path
 def crawl(directory: Path) -> dict[str, set[str]]:
     """
     Analyse un répertoire de pages HTML à la recherche de liens.
@@ -86,30 +88,32 @@ def transition_model(
     corpus: dict[str, set[str]], page: str, damping_factor: float
 ) -> dict[str, float]:
     """
-       Retourne une distribution de probabilité sur la prochaine page à visiter.
+    Retourne une distribution de probabilité sur la prochaine page à visiter.
 
-       Avec une probabilité `damping_factor`, choisit au hasard un lien
-       pointé par la `page`. Avec une probabilité `1 - damping_factor`, choisit
-       au hasard un lien parmi toutes les pages du corpus.
+    Avec une probabilité `damping_factor`, choisit au hasard un lien
+    pointé par la `page`. Avec une probabilité `1 - damping_factor`, choisit
+    au hasard un lien parmi toutes les pages du corpus.
 
-       Args:
-           corpus:
-               Le dictionnaire représentant le graphe des pages du corpus.
-           page:
-               Le nom de la page actuelle sur laquelle se trouve le surfeur.
-           damping_factor:
-               Le facteur d'amortissement (probabilité de suivre un lien existant).
+    Args:
+        corpus:
+            Le dictionnaire représentant le graphe des pages du corpus.
+        page:
+            Le nom de la page actuelle sur laquelle se trouve le surfeur.
+        damping_factor:
+            Le facteur d'amortissement (probabilité de suivre un lien existant).
 
-       Returns:
-           Un dictionnaire associant chaque page du corpus à la probabilité
-           (entre 0 et 1) qu'elle soit la prochaine page visitée.
-           La somme des probabilités est de 1.
+    Returns:
+        Un dictionnaire associant chaque page du corpus à la probabilité
+        (entre 0 et 1) qu'elle soit la prochaine page visitée.
+        La somme des probabilités est de 1.
 
-       """
+    """
     teleportChance = (1 - damping_factor) / len(corpus)
-    if len(corpus[page]) == 0: return {k: 1 / len(corpus) for k in corpus}
+    if len(corpus[page]) == 0:
+        return {k: 1 / len(corpus) for k in corpus}
     oddsPerLink = damping_factor / len(corpus[page]) + teleportChance
     return {k: oddsPerLink if k in corpus[page] else teleportChance for k in corpus}
+
 
 def sample_pagerank(
     corpus: dict[str, set[str]], damping_factor: float, n: int
@@ -134,15 +138,16 @@ def sample_pagerank(
         les valeurs de PageRank est de 1.
 
     """
-    visitAmountPerPageDict = {k: 0 for k in corpus}
+    visitAmountPerPageDict = dict.fromkeys(corpus, 0)
     lastVisitedPage: str = random.choice(list(corpus.keys()))
     visitAmountPerPageDict[lastVisitedPage] += 1
-    for i in range(1, n - 1):
+    for _i in range(1, n - 1):
         pageChoicesOdds = transition_model(corpus, lastVisitedPage, damping_factor)
-        lastVisitedPage = random.choices(list(pageChoicesOdds.keys()), weights=list(pageChoicesOdds.values()))[0]
+        lastVisitedPage = random.choices(
+            list(pageChoicesOdds.keys()), weights=list(pageChoicesOdds.values())
+        )[0]
         visitAmountPerPageDict[lastVisitedPage] += 1
     return {k: visitAmountPerPageDict[k] / n for k in corpus}
-
 
 
 def iterate_pagerank(
@@ -167,4 +172,28 @@ def iterate_pagerank(
         La somme de toutes les valeurs de PageRank est de 1.
 
     """
-    raise NotImplementedError
+    teleportChance = (1 - damping_factor) / len(corpus)
+    oldPageRank = {k: 1 / len(corpus) for k in corpus}
+    newPageRank = {}
+    differenceMax = 1
+
+    while differenceMax > ITERATIVE_PRECISION:
+        for current in corpus:
+            newPageRank[current] = 0
+            for page in corpus:
+                if current in corpus[page]:
+                    givenWeight = damping_factor * (
+                        oldPageRank[page] / len(corpus[page])
+                    )
+                    newPageRank[current] += givenWeight
+                elif len(corpus[page]) == 0:
+                    givenWeight = damping_factor * (oldPageRank[page] / len(corpus))
+                    newPageRank[current] += givenWeight
+            newPageRank[current] += teleportChance
+
+        differenceMax = max(
+            abs(oldPageRank[page] - newPageRank[page]) for page in oldPageRank
+        )
+        oldPageRank = newPageRank.copy()
+
+    return newPageRank
